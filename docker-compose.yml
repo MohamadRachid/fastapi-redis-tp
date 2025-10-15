@@ -1,0 +1,43 @@
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_net
+    # (Optional) expose Redis to the host by uncommenting below:
+    # ports:
+    #   - "${REDIS_PORT:-6379}:6379"
+
+  web:
+    build: .
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "${REDIS_PORT:-6379}"
+      APP_MESSAGE: "Hello from web"
+    depends_on:
+      - redis
+    expose:
+      - "8000"               # internal only; NOT published to host
+    networks:
+      - app_net
+
+  # Part 5: simple load balancer (access at http://localhost:8080/)
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - web
+    ports:
+      - "8080:80"            # host:container
+    networks:
+      - app_net
+
+volumes:
+  redis_data:
+
+networks:
+  app_net:
+    driver: bridge

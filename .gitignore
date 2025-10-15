@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.so
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.coverage
+.cache/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Env / logs
+.env
+*.log
+
+# Build
+build/
+dist/
+
+# Docker
+docker-data/
+*.pid
