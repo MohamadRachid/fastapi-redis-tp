@@ -7,46 +7,78 @@ on:
     branches: [ "main" ]
 
 jobs:
+  # ---------- Code Quality ----------
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-      - run: |
+          python-version: "3.11"
+
+      - name: Install linters
+        run: |
           python -m pip install --upgrade pip
           pip install flake8 bandit
-          flake8 .
-          bandit -r .
 
+      - name: flake8 (uses .flake8 config)
+        run: flake8 .
+
+      - name: Security scan (Bandit, report only)
+        run: bandit -r . || true
+
+  # ---------- Tests ----------
   tests:
     runs-on: ubuntu-latest
     needs: lint
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: |
-          pip install -r requirements.txt || true
-          pip install pytest
-          pytest tests/ -v || true
+      - name: Checkout
+        uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps + pytest
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run unit tests
+        run: pytest tests/ -v
+
+  # ---------- Build & Push Docker ----------
   build:
     runs-on: ubuntu-latest
     needs: tests
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-      - name: Build image
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/fastapi-redis-tp:${{ github.sha }} .
+
+      - name: Build image (tag with SHA and latest)
+        run: |
+          IMAGE="${{ secrets.DOCKER_USERNAME }}/fastapi-redis-tp"
+          docker build -t "$IMAGE:${{ github.sha }}" -t "$IMAGE:latest" .
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
       - name: Smoke-run container
         run: |
-          docker run -d -p 8000:8000 --name test_container ${{ secrets.DOCKER_USERNAME }}/fastapi-redis-tp:${{ github.sha }}
+          docker run -d -p 8000:8000 --name test_container "$IMAGE:${{ github.sha }}"
           sleep 5
           docker ps
-      - name: Push image
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/fastapi-redis-tp:${{ github.sha }}
+
+      - name: Push images
+        run: |
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"
